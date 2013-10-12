@@ -63,18 +63,35 @@
                  (reduce + 0.0))]
     (/ sum n)))
 
+(defn deep-merge-with
+  "Like merge-with, but merges maps recursively, applying the given fn
+  only when there's a non-map at a particular level.
+
+  (deepmerge + {:a {:b {:c 1 :d {:x 1 :y 2}} :e 3} :f 4}
+               {:a {:b {:c 2 :d {:z 9} :z 3} :e 100}})
+  -> {:a {:b {:z 3, :c 3, :d {:z 9, :x 1, :y 2}}, :e 103}, :f 4}"
+  [f & maps]
+  (apply
+    (fn m [& maps]
+      (if (every? map? maps)
+        (apply merge-with m maps)
+        (apply f maps)))
+    maps))
+
 (defn -main [& args]
   (let [training-data (load-file "resources/news20")
         test-data (load-file "resources/news20.t")]
     (loop [iter 0
-           weight {}]
+           weight {}
+           cum-weight {}]
       (let [new-weight (reduce
                         (fn [result gold]
                           (update-weight result gold))
                         weight training-data)
+            new-cum-weight (deep-merge-with + cum-weight new-weight)
             predictions (->> test-data
                              (map second)
-                             (mapv (partial predict-label new-weight)))]
+                             (mapv (partial predict-label new-cum-weight)))]
         (println (str iter ": " (accuracy (mapv first test-data)
                                           predictions)))
-        (recur (inc iter) new-weight)))))
+        (recur (inc iter) new-weight new-cum-weight)))))
